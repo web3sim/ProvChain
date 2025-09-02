@@ -1,6 +1,5 @@
 # ProvChain - Verifiable Data Provenance for AI & Enterprises
 
-![ProvChain Logo](./assets/logo.png)
 
 **Tagline:** "Trust Every Byte — Provable Data Provenance for AI & Enterprises."
 
