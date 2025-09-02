@@ -123,14 +123,6 @@ Security is paramount for ProvChain. Please see our [Security Policy](./SECURITY
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
 
-## 📞 Contact
-
-- **Project Lead**: [Your Name]
-- **Email**: provchain@example.com
-- **Website**: https://provchain.io
-- **Twitter**: [@ProvChain](https://twitter.com/provchain)
-- **Discord**: [Join our community](https://discord.gg/provchain)
-
 ## 🙏 Acknowledgments
 
 - **Filecoin Foundation** for supporting decentralized storage innovation
