@@ -1,0 +1,324 @@
+2025-09-21T13:11:05.168Z [[32minfo[39m] 🚀 Starting ProvChain MVP Demo 
+2025-09-21T13:11:05.168Z [[32minfo[39m] 
+📊 Phase 1: Data Creation with Provenance 
+2025-09-21T13:11:05.169Z [[32minfo[39m] ✅ Created research data node {
+  "nodeId": "node_387f23c0785d3c7d",
+  "dataSize": 306,
+  "tags": [
+    "climate-change",
+    "machine-learning",
+    "satellite-data"
+  ]
+}
+2025-09-21T13:11:05.169Z [[32minfo[39m] ✅ Created processed data with transformation edge {
+  "sourceNodeId": "node_387f23c0785d3c7d",
+  "targetNodeId": "node_931ac6cf29ebb2b7",
+  "edgeId": "edge_b671d28f6208cd2d",
+  "transformationProof": true
+}
+2025-09-21T13:11:05.170Z [[32minfo[39m] ✅ Created analysis results with provenance chain {
+  "totalNodes": 3,
+  "totalEdges": 2
+}
+2025-09-21T13:11:05.170Z [[32minfo[39m] 
+🗄️  Phase 2: Filecoin Storage Integration 
+2025-09-21T13:11:05.170Z [[32minfo[39m] Storing node 1/3 on Filecoin... {
+  "nodeId": "node_387f23c0785d3c7d",
+  "nodeType": "data",
+  "dataSize": 306
+}
+2025-09-21T13:11:06.052Z [[32minfo[39m] ✅ Node stored successfully {
+  "nodeId": "node_387f23c0785d3c7d",
+  "cid": "bafybei06aeea92904b58b8b2efe8badaccfc46a54f73ba661487b7d458",
+  "deals": 2,
+  "proofAlgorithm": "filecoin_pdp_v1"
+}
+2025-09-21T13:11:06.052Z [[32minfo[39m] Storing node 2/3 on Filecoin... {
+  "nodeId": "node_931ac6cf29ebb2b7",
+  "nodeType": "data",
+  "dataSize": 533
+}
+2025-09-21T13:11:06.579Z [[32minfo[39m] ✅ Node stored successfully {
+  "nodeId": "node_931ac6cf29ebb2b7",
+  "cid": "bafybei3e590cce309ce38f8ccdc7ab22b86144d12c21d6ba2ce4a318dc",
+  "deals": 2,
+  "proofAlgorithm": "filecoin_pdp_v1"
+}
+2025-09-21T13:11:06.580Z [[32minfo[39m] Storing node 3/3 on Filecoin... {
+  "nodeId": "node_ac99abda9d0d46c2",
+  "nodeType": "data",
+  "dataSize": 317
+}
+2025-09-21T13:11:07.454Z [[32minfo[39m] ✅ Node stored successfully {
+  "nodeId": "node_ac99abda9d0d46c2",
+  "cid": "bafybeidefceac4ffdbde6be45c5246dd8f143942a9b0c0734e02a9a533",
+  "deals": 2,
+  "proofAlgorithm": "filecoin_pdp_v1"
+}
+2025-09-21T13:11:07.454Z [[32minfo[39m] 📈 Storage phase completed {
+  "totalNodes": 3,
+  "storedNodes": 3,
+  "storageRate": "100%"
+}
+2025-09-21T13:11:07.455Z [[32minfo[39m] 
+🔐 Phase 3: Verification and Integrity Checking 
+2025-09-21T13:11:07.455Z [[32minfo[39m] Verifying node integrity... {
+  "nodeId": "node_387f23c0785d3c7d",
+  "cid": "bafybei06aeea92904b58b8b2efe8badaccfc46a54f73ba661487b7d458"
+}
+2025-09-21T13:11:07.753Z [[32minfo[39m] ✅ Verification successful {
+  "nodeId": "node_387f23c0785d3c7d",
+  "cid": "bafybei06aeea92904b58b8b2efe8badaccfc46a54f73ba661487b7d458",
+  "verificationStatus": {
+    "lastVerified": "2025-09-21T13:11:07.753Z",
+    "verified": true,
+    "totalVerifications": 2,
+    "linkedToStorage": true
+  }
+}
+2025-09-21T13:11:07.754Z [[32minfo[39m] Verifying node integrity... {
+  "nodeId": "node_931ac6cf29ebb2b7",
+  "cid": "bafybei3e590cce309ce38f8ccdc7ab22b86144d12c21d6ba2ce4a318dc"
+}
+2025-09-21T13:11:08.000Z [[32minfo[39m] ✅ Verification successful {
+  "nodeId": "node_931ac6cf29ebb2b7",
+  "cid": "bafybei3e590cce309ce38f8ccdc7ab22b86144d12c21d6ba2ce4a318dc",
+  "verificationStatus": {
+    "lastVerified": "2025-09-21T13:11:08.000Z",
+    "verified": true,
+    "totalVerifications": 2,
+    "linkedToStorage": true
+  }
+}
+2025-09-21T13:11:08.000Z [[32minfo[39m] Verifying node integrity... {
+  "nodeId": "node_ac99abda9d0d46c2",
+  "cid": "bafybeidefceac4ffdbde6be45c5246dd8f143942a9b0c0734e02a9a533"
+}
+2025-09-21T13:11:08.315Z [[32minfo[39m] ✅ Verification successful {
+  "nodeId": "node_ac99abda9d0d46c2",
+  "cid": "bafybeidefceac4ffdbde6be45c5246dd8f143942a9b0c0734e02a9a533",
+  "verificationStatus": {
+    "lastVerified": "2025-09-21T13:11:08.315Z",
+    "verified": true,
+    "totalVerifications": 2,
+    "linkedToStorage": true
+  }
+}
+2025-09-21T13:11:08.315Z [[32minfo[39m] 📊 Verification phase completed {
+  "verificationsPassed": 3,
+  "verificationsFailed": 0,
+  "successRate": "100%"
+}
+2025-09-21T13:11:08.316Z [[32minfo[39m] 
+🔍 Phase 4: Provenance Tracking and Queries 
+2025-09-21T13:11:08.316Z [[32minfo[39m] Tracing complete provenance chain... {
+  "analysisNodeId": "node_ac99abda9d0d46c2"
+}
+2025-09-21T13:11:08.317Z [[32minfo[39m] ✅ Provenance chain retrieved {
+  "analysisNodeId": "node_ac99abda9d0d46c2",
+  "pathsFound": 1,
+  "totalStepsInLongestPath": 3
+}
+2025-09-21T13:11:08.317Z [[32minfo[39m] 📋 Provenance Path 1: {
+  "pathLength": 3,
+  "steps": [
+    {
+      "nodeId": "node_ac99abda9d0d46c2",
+      "nodeType": "data",
+      "hasStorage": true,
+      "relationship": "data_analysis"
+    },
+    {
+      "nodeId": "node_931ac6cf29ebb2b7",
+      "nodeType": "data",
+      "hasStorage": true,
+      "relationship": "data_processing"
+    },
+    {
+      "nodeId": "node_387f23c0785d3c7d",
+      "nodeType": "data",
+      "hasStorage": true
+    }
+  ]
+}
+2025-09-21T13:11:08.317Z [[32minfo[39m] Verifying provenance integrity... 
+2025-09-21T13:11:09.171Z [[32minfo[39m] ✅ Provenance verification completed {
+  "totalPaths": 1,
+  "validPaths": 1,
+  "verificationRate": "100%",
+  "errors": []
+}
+2025-09-21T13:11:09.172Z [[32minfo[39m] Running graph queries... 
+2025-09-21T13:11:09.173Z [[32minfo[39m] 📊 Query results {
+  "query": {
+    "nodeType": "research_data"
+  },
+  "resultsCount": 0,
+  "nodeIds": []
+}
+2025-09-21T13:11:09.173Z [[32minfo[39m] 📊 Query results {
+  "query": {
+    "nodeType": "processed_data"
+  },
+  "resultsCount": 0,
+  "nodeIds": []
+}
+2025-09-21T13:11:09.173Z [[32minfo[39m] 📊 Query results {
+  "query": {
+    "nodeType": "analysis_results"
+  },
+  "resultsCount": 0,
+  "nodeIds": []
+}
+2025-09-21T13:11:09.174Z [[32minfo[39m] 📊 Query results {
+  "query": {
+    "tags": [
+      "climate-change"
+    ]
+  },
+  "resultsCount": 1,
+  "nodeIds": [
+    "node_387f23c0785d3c7d"
+  ]
+}
+2025-09-21T13:11:09.174Z [[32minfo[39m] 📊 Query results {
+  "query": {
+    "verified": true
+  },
+  "resultsCount": 3,
+  "nodeIds": [
+    "node_ac99abda9d0d46c2",
+    "node_931ac6cf29ebb2b7",
+    "node_387f23c0785d3c7d"
+  ]
+}
+2025-09-21T13:11:09.174Z [[32minfo[39m] 
+⚡ Phase 5: Batch Operations Demo 
+2025-09-21T13:11:09.175Z [[32minfo[39m] Executing batch storage operations... {
+  "operationsCount": 3
+}
+2025-09-21T13:11:12.770Z [[32minfo[39m] ✅ Batch operations completed {
+  "totalOperations": 3,
+  "successful": 3,
+  "failed": 0,
+  "successRate": "100%"
+}
+2025-09-21T13:11:12.770Z [[32minfo[39m] ✅ Batch item 1 stored {
+  "nodeId": "node_f8c7159e62ecd31e",
+  "cid": "bafybei0bb7da5196b95680e43425f54146c3236284f6ca56db33e6596a"
+}
+2025-09-21T13:11:12.770Z [[32minfo[39m] ✅ Batch item 2 stored {
+  "nodeId": "node_ca4f567ad1d04f5a",
+  "cid": "bafybei7c02450cf6239ad79df86e2a0ddb99adc1715393d89f81b7c8a7"
+}
+2025-09-21T13:11:12.771Z [[32minfo[39m] ✅ Batch item 3 stored {
+  "nodeId": "node_aff1c4aa72a5b14c",
+  "cid": "bafybei44ee6e3218062e89785a4cfcc63ddbbe3586baf3a45c35ed6fa2"
+}
+2025-09-21T13:11:12.771Z [[32minfo[39m] 
+🛡️  Phase 6: Error Handling and Recovery Demo 
+2025-09-21T13:11:12.771Z [[32minfo[39m] Testing error scenario: Network Timeout 
+2025-09-21T13:11:19.779Z [[32minfo[39m] ✅ Error handled gracefully {
+  "scenario": "Network Timeout",
+  "errorType": "NETWORK_ERROR",
+  "retryable": true,
+  "severity": "MEDIUM"
+}
+2025-09-21T13:11:19.780Z [[32minfo[39m] Testing error scenario: Invalid CID 
+2025-09-21T13:11:19.780Z [[32minfo[39m] Testing error scenario: Storage Service Unavailable 
+2025-09-21T13:11:26.788Z [[32minfo[39m] ✅ Error handled gracefully {
+  "scenario": "Storage Service Unavailable",
+  "errorType": "STORAGE_ERROR",
+  "retryable": true,
+  "severity": "HIGH"
+}
+2025-09-21T13:11:26.788Z [[32minfo[39m] 📊 Error handling statistics {
+  "totalErrors": 8,
+  "errorsByType": {
+    "NETWORK_ERROR": 4,
+    "STORAGE_ERROR": 4
+  },
+  "healthScore": 64
+}
+2025-09-21T13:11:26.789Z [[32minfo[39m] 
+📈 Phase 7: Metrics and Reporting 
+2025-09-21T13:11:26.789Z [[32minfo[39m] 📊 Graph Metrics {
+  "totalNodes": 6,
+  "totalEdges": 2,
+  "verifiedNodes": 3,
+  "totalStorage": 1435,
+  "nodeTypes": {
+    "data": 6
+  },
+  "tagDistribution": {
+    "climate-change": 1,
+    "machine-learning": 1,
+    "satellite-data": 1,
+    "processed": 1,
+    "ai-analysis": 1,
+    "analysis": 1,
+    "recommendations": 1,
+    "supplementary": 3,
+    "batch-created": 3
+  },
+  "averageNodeSize": 239.16666666666666,
+  "verificationRate": 0.5
+}
+2025-09-21T13:11:26.789Z [[32minfo[39m] 🗄️  Storage Metrics {
+  "totalStored": 6,
+  "totalVerifications": 3,
+  "successfulVerifications": 3,
+  "failedVerifications": 0,
+  "averageVerificationTime": 250,
+  "storageProviders": [
+    "f01234",
+    "f05678",
+    "f09012"
+  ],
+  "networkHealth": "excellent",
+  "activeDeals": 12,
+  "totalDataSize": 1435,
+  "retrievalSuccessRate": 0.98,
+  "lastUpdated": "2025-09-21T13:11:26.789Z",
+  "verificationSuccessRate": 1
+}
+2025-09-21T13:11:26.790Z [[32minfo[39m] 📁 Graph Export Summary {
+  "nodes": 6,
+  "edges": 2,
+  "verifiedNodes": 6,
+  "totalDataSize": 1435,
+  "exportSize": 13488
+}
+2025-09-21T13:11:27.674Z [[32minfo[39m] 📋 Compliance Report {
+  "nodeId": "node_ac99abda9d0d46c2",
+  "dataType": "data",
+  "provenanceComplete": true,
+  "verificationPassed": true,
+  "storageVerified": true,
+  "complianceScore": 100,
+  "generatedAt": "2025-09-21T13:11:27.674Z"
+}
+2025-09-21T13:11:27.675Z [[32minfo[39m] 🎯 Final Demo Statistics {
+  "nodesCreated": 6,
+  "nodesStored": 6,
+  "edgesCreated": 2,
+  "verificationsPassed": 3,
+  "verificationsFailed": 0,
+  "startTime": "2025-09-21T13:11:05.168Z",
+  "endTime": null,
+  "duration": "ongoing",
+  "storageSuccessRate": 100,
+  "verificationSuccessRate": 100
+}
+2025-09-21T13:11:27.675Z [[32minfo[39m] ✅ ProvChain MVP Demo completed successfully! {
+  "duration": "22507ms",
+  "stats": {
+    "nodesCreated": 6,
+    "nodesStored": 6,
+    "edgesCreated": 2,
+    "verificationsPassed": 3,
+    "verificationsFailed": 0,
+    "startTime": "2025-09-21T13:11:05.168Z",
+    "endTime": "2025-09-21T13:11:27.675Z"
+  }
+}

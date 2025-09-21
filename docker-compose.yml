@@ -1,0 +1,53 @@
+# Docker Compose for ProvChain MVP
+version: '3.8'
+
+services:
+  provchain:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - LIGHTHOUSE_API_KEY=${LIGHTHOUSE_API_KEY}
+      - STORACHA_EMAIL=${STORACHA_EMAIL}
+      - STORACHA_SPACE=${STORACHA_SPACE}
+      - LOTUS_API_URL=${LOTUS_API_URL}
+      - LOTUS_TOKEN=${LOTUS_TOKEN}
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - DB_USERNAME=provchain
+      - DB_PASSWORD=provchain_pass
+      - DB_NAME=provchain_db
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./keys:/app/keys
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=provchain
+      - POSTGRES_PASSWORD=provchain_pass
+      - POSTGRES_DB=provchain_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  postgres_data:

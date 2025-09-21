@@ -188,6 +188,29 @@ const typeDefs = `
     scalar JSON
 `;
 
+// Import our enhanced modules
+const { ProvChainGraph, ProvenanceNode, ProvenanceEdge } = require('./provchain-core');
+const { FilecoinStorage } = require('./filecoin-storage');
+const winston = require('winston');
+
+// Configure logger
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+    ),
+    transports: [
+        new winston.transports.Console({
+            format: winston.format.simple()
+        })
+    ]
+});
+
+// Global instances
+const graph = new ProvChainGraph();
+const storage = new FilecoinStorage();
+
 // Resolvers
 const resolvers = {
     CID: CIDScalar,
@@ -218,248 +241,517 @@ const resolvers = {
     }),
 
     Query: {
-        node: async (_, { id }, { dataSources }) => {
-            const node = dataSources.graph.getNode(id);
-            if (!node) return null;
-            
-            const verification = await dataSources.storage.verifyIntegrity(node.cid);
-            return {
-                ...node.toJSON(),
-                verified: verification.valid
-            };
+        node: async (_, { id }) => {
+            try {
+                const node = graph.getNode(id);
+                if (!node) {
+                    logger.warn('Node not found', { nodeId: id });
+                    return null;
+                }
+
+                const verificationStatus = node.getVerificationStatus();
+                
+                // Verify integrity if stored on Filecoin
+                if (node.cid) {
+                    try {
+                        await node.verify(storage);
+                    } catch (error) {
+                        logger.warn('Node verification failed', { nodeId: id, error: error.message });
+                    }
+                }
+
+                logger.info('Node retrieved', { nodeId: id, hasStorage: !!node.cid });
+                
+                return {
+                    ...node.toJSON(),
+                    verified: verificationStatus.verified
+                };
+            } catch (error) {
+                logger.error('Error retrieving node', { nodeId: id, error: error.message });
+                throw new Error(`Failed to retrieve node: ${error.message}`);
+            }
         },
 
-        nodes: async (_, { filter, limit, cursor }, { dataSources }) => {
-            const query = {
-                nodeType: filter?.nodeType,
-                limit: Math.min(limit, 100) // Cap at 100
-            };
-            
-            const results = dataSources.graph.query(query);
-            
-            return {
-                nodes: results,
-                totalCount: results.length,
-                hasNextPage: results.length === limit,
-                cursor: results.length > 0 ? results[results.length - 1].id : null
-            };
+        nodes: async (_, { filter, limit = 10, cursor }) => {
+            try {
+                const query = {
+                    nodeType: filter?.nodeType,
+                    verified: filter?.verified,
+                    limit: Math.min(limit, 100), // Cap at 100
+                    offset: cursor ? parseInt(cursor) : 0
+                };
+
+                if (filter?.createdAfter || filter?.createdBefore) {
+                    query.dateRange = {
+                        start: filter.createdAfter ? filter.createdAfter.toISOString().split('T')[0] : '1970-01-01',
+                        end: filter.createdBefore ? filter.createdBefore.toISOString().split('T')[0] : '2099-12-31'
+                    };
+                }
+                
+                const results = graph.query(query);
+                
+                logger.info('Nodes query executed', { 
+                    filtersApplied: Object.keys(filter || {}).length,
+                    resultsCount: results.length 
+                });
+                
+                return {
+                    nodes: results,
+                    totalCount: results.length,
+                    hasNextPage: results.length === limit,
+                    cursor: results.length > 0 ? String(query.offset + results.length) : null
+                };
+            } catch (error) {
+                logger.error('Error querying nodes', { error: error.message });
+                throw new Error(`Failed to query nodes: ${error.message}`);
+            }
         },
 
-        nodesByCid: async (_, { cids }, { dataSources }) => {
-            const nodes = [];
-            for (const cid of cids) {
-                const node = dataSources.graph.getNodeByCid(cid);
-                if (node) {
-                    const verification = await dataSources.storage.verifyIntegrity(cid);
-                    nodes.push({
-                        ...node.toJSON(),
-                        verified: verification.valid
+        nodesByCid: async (_, { cids }) => {
+            try {
+                const nodes = [];
+                for (const cid of cids) {
+                    const node = graph.getNodeByCid(cid);
+                    if (node) {
+                        const verificationStatus = node.getVerificationStatus();
+                        
+                        // Verify integrity
+                        try {
+                            await node.verify(storage);
+                        } catch (error) {
+                            logger.warn('Node verification failed', { cid, error: error.message });
+                        }
+
+                        nodes.push({
+                            ...node.toJSON(),
+                            verified: verificationStatus.verified
+                        });
+                    }
+                }
+
+                logger.info('Nodes retrieved by CIDs', { 
+                    requestedCids: cids.length,
+                    foundNodes: nodes.length 
+                });
+                
+                return nodes;
+            } catch (error) {
+                logger.error('Error retrieving nodes by CIDs', { error: error.message });
+                throw new Error(`Failed to retrieve nodes by CIDs: ${error.message}`);
+            }
+        },
+
+        provenance: async (_, { query: provenanceQuery }) => {
+            try {
+                const provenance = graph.getProvenance(
+                    provenanceQuery.nodeId, 
+                    provenanceQuery.maxDepth || 10
+                );
+                const paths = [];
+                
+                for (const path of provenance) {
+                    const nodes = path.map(step => step.node).filter(Boolean);
+                    const edges = path.map(step => step.edge).filter(Boolean);
+                    
+                    // Verify each path if requested
+                    let valid = true;
+                    if (provenanceQuery.includeTransformations) {
+                        for (const node of nodes) {
+                            if (node.cid) {
+                                try {
+                                    await node.verify(storage);
+                                } catch (error) {
+                                    valid = false;
+                                    logger.warn('Path verification failed', { 
+                                        nodeId: node.id, 
+                                        error: error.message 
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    paths.push({
+                        nodes: nodes.map(n => ({ 
+                            ...n.toJSON(), 
+                            verified: valid && !!n.cid 
+                        })),
+                        edges: edges.map(e => e.toJSON()),
+                        valid: valid,
+                        verifiedAt: new Date().toISOString()
                     });
                 }
+
+                logger.info('Provenance retrieved', { 
+                    nodeId: provenanceQuery.nodeId,
+                    pathsFound: paths.length 
+                });
+                
+                return paths;
+            } catch (error) {
+                logger.error('Error retrieving provenance', { 
+                    nodeId: provenanceQuery.nodeId, 
+                    error: error.message 
+                });
+                throw new Error(`Failed to retrieve provenance: ${error.message}`);
             }
-            return nodes;
         },
 
-        provenance: async (_, { query }, { dataSources }) => {
-            const provenance = dataSources.graph.getProvenance(query.nodeId);
-            const paths = [];
-            
-            for (const path of provenance) {
-                const nodes = path.map(step => step.node).filter(Boolean);
-                const edges = path.map(step => step.edge).filter(Boolean);
+        verifyProvenance: async (_, { nodeId }) => {
+            try {
+                const verificationResults = await graph.verifyProvenance(nodeId, storage);
+                const results = [];
                 
-                // Verify each path
-                let valid = true;
-                for (const node of nodes) {
-                    if (node.cid) {
-                        const verification = await dataSources.storage.verifyIntegrity(node.cid);
-                        if (!verification.valid) {
-                            valid = false;
-                            break;
+                for (const result of verificationResults) {
+                    for (const step of result.path) {
+                        if (step.node && step.node.cid) {
+                            const verificationStatus = step.node.getVerificationStatus();
+                            results.push({
+                                valid: result.valid && verificationStatus.verified,
+                                cid: step.node.cid,
+                                verifiedAt: result.verifiedAt,
+                                source: 'filecoin_storage',
+                                error: result.errors.length > 0 ? result.errors[0].error : null
+                            });
+                        }
+                    }
+                }
+
+                logger.info('Provenance verification completed', { 
+                    nodeId,
+                    verificationsPerformed: results.length 
+                });
+                
+                return results;
+            } catch (error) {
+                logger.error('Error verifying provenance', { nodeId, error: error.message });
+                throw new Error(`Failed to verify provenance: ${error.message}`);
+            }
+        },
+
+        verifyIntegrity: async (_, { cid }) => {
+            try {
+                const node = graph.getNodeByCid(cid);
+                if (!node) {
+                    return {
+                        valid: false,
+                        cid: cid,
+                        verifiedAt: new Date().toISOString(),
+                        source: 'graph_lookup',
+                        error: 'Node not found in graph'
+                    };
+                }
+
+                const isValid = await storage.verifyStorageProof(cid, node.data);
+
+                logger.info('Integrity verification completed', { cid, valid: isValid });
+
+                return {
+                    valid: isValid,
+                    cid: cid,
+                    verifiedAt: new Date().toISOString(),
+                    source: 'filecoin_storage',
+                    error: isValid ? null : 'Storage proof verification failed'
+                };
+            } catch (error) {
+                logger.error('Error verifying integrity', { cid, error: error.message });
+                return {
+                    valid: false,
+                    cid: cid,
+                    verifiedAt: new Date().toISOString(),
+                    source: 'error_handler',
+                    error: error.message
+                };
+            }
+        },
+
+        batchVerify: async (_, { cids }) => {
+            try {
+                const results = [];
+                for (const cid of cids) {
+                    const result = await resolvers.Query.verifyIntegrity(_, { cid });
+                    results.push(result);
+                }
+
+                logger.info('Batch verification completed', { 
+                    totalCids: cids.length,
+                    successfulVerifications: results.filter(r => r.valid).length 
+                });
+
+                return results;
+            } catch (error) {
+                logger.error('Error in batch verification', { error: error.message });
+                throw new Error(`Failed to perform batch verification: ${error.message}`);
+            }
+        },
+
+        complianceReport: async (_, { nodeId, type }) => {
+            try {
+                const node = graph.getNode(nodeId);
+                if (!node) {
+                    throw new Error('Node not found');
+                }
+
+                const provenance = graph.getProvenance(nodeId);
+                const verificationResults = await graph.verifyProvenance(nodeId, storage);
+                
+                const findings = [];
+                const failedVerifications = verificationResults.filter(r => !r.valid);
+                
+                if (failedVerifications.length > 0) {
+                    findings.push(`${failedVerifications.length} verification failures detected in provenance chain`);
+                }
+                if (provenance.length === 0) {
+                    findings.push('No provenance data available');
+                }
+                if (!node.cid) {
+                    findings.push('Node not stored on distributed storage');
+                }
+
+                const status = findings.length === 0 ? 'COMPLIANT' : 'NON_COMPLIANT';
+
+                logger.info('Compliance report generated', { 
+                    nodeId, 
+                    type, 
+                    status,
+                    findingsCount: findings.length 
+                });
+                
+                return {
+                    reportId: `compliance_${nodeId}_${Date.now()}`,
+                    nodeId: nodeId,
+                    complianceType: type,
+                    status: status,
+                    findings: findings,
+                    generatedAt: new Date().toISOString(),
+                    validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
+                };
+            } catch (error) {
+                logger.error('Error generating compliance report', { nodeId, type, error: error.message });
+                throw new Error(`Failed to generate compliance report: ${error.message}`);
+            }
+        },
+
+        auditTrail: async (_, { nodeId, fromDate, toDate }) => {
+            try {
+                const provenance = graph.getProvenance(nodeId);
+                let auditNodes = [];
+                
+                for (const path of provenance) {
+                    for (const step of path) {
+                        if (step.node) {
+                            auditNodes.push(step.node);
                         }
                     }
                 }
                 
-                paths.push({
-                    nodes: nodes.map(n => ({ ...n.toJSON(), verified: valid })),
-                    edges: edges.map(e => e.toJSON()),
-                    valid: valid,
-                    verifiedAt: new Date().toISOString()
-                });
-            }
-            
-            return paths;
-        },
-
-        verifyProvenance: async (_, { nodeId }, { dataSources }) => {
-            const results = dataSources.graph.verifyProvenance(nodeId);
-            const verificationResults = [];
-            
-            for (const result of results) {
-                for (const step of result.path) {
-                    if (step.node && step.node.cid) {
-                        const verification = await dataSources.storage.verifyIntegrity(step.node.cid);
-                        verificationResults.push(verification);
-                    }
+                // Remove duplicates
+                const uniqueNodes = Array.from(new Map(auditNodes.map(n => [n.id, n])).values());
+                
+                // Filter by date range if provided
+                if (fromDate || toDate) {
+                    const filteredNodes = uniqueNodes.filter(node => {
+                        const nodeDate = new Date(node.createdAt);
+                        if (fromDate && nodeDate < fromDate) return false;
+                        if (toDate && nodeDate > toDate) return false;
+                        return true;
+                    });
+                    auditNodes = filteredNodes;
+                } else {
+                    auditNodes = uniqueNodes;
                 }
-            }
-            
-            return verificationResults;
-        },
 
-        verifyIntegrity: async (_, { cid }, { dataSources }) => {
-            return await dataSources.storage.verifyIntegrity(cid);
-        },
-
-        batchVerify: async (_, { cids }, { dataSources }) => {
-            const results = [];
-            for (const cid of cids) {
-                const result = await dataSources.storage.verifyIntegrity(cid);
-                results.push(result);
-            }
-            return results;
-        },
-
-        complianceReport: async (_, { nodeId, type }, { dataSources }) => {
-            // Generate compliance report based on provenance
-            const provenance = dataSources.graph.getProvenance(nodeId);
-            const verification = dataSources.graph.verifyProvenance(nodeId);
-            
-            const findings = [];
-            if (verification.some(r => !r.valid)) {
-                findings.push('Verification failures detected in provenance chain');
-            }
-            if (provenance.length === 0) {
-                findings.push('No provenance data available');
-            }
-            
-            return {
-                reportId: `compliance_${nodeId}_${Date.now()}`,
-                nodeId: nodeId,
-                complianceType: type,
-                status: findings.length === 0 ? 'COMPLIANT' : 'NON_COMPLIANT',
-                findings: findings,
-                generatedAt: new Date().toISOString(),
-                validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
-            };
-        },
-
-        auditTrail: async (_, { nodeId, fromDate, toDate }, { dataSources }) => {
-            const provenance = dataSources.graph.getProvenance(nodeId);
-            let auditNodes = [];
-            
-            for (const path of provenance) {
-                for (const step of path) {
-                    if (step.node) {
-                        auditNodes.push(step.node);
-                    }
-                }
-            }
-            
-            // Filter by date range if provided
-            if (fromDate || toDate) {
-                auditNodes = auditNodes.filter(node => {
-                    const nodeDate = new Date(node.createdAt);
-                    if (fromDate && nodeDate < fromDate) return false;
-                    if (toDate && nodeDate > toDate) return false;
-                    return true;
+                logger.info('Audit trail generated', { 
+                    nodeId, 
+                    totalNodesInTrail: auditNodes.length,
+                    dateFiltered: !!(fromDate || toDate)
                 });
+                
+                return auditNodes.map(node => ({ 
+                    ...node.toJSON(), 
+                    verified: node.getVerificationStatus().verified
+                }));
+            } catch (error) {
+                logger.error('Error generating audit trail', { nodeId, error: error.message });
+                throw new Error(`Failed to generate audit trail: ${error.message}`);
             }
-            
-            return auditNodes.map(node => ({ 
-                ...node.toJSON(), 
-                verified: true // Simplified for demo
-            }));
         },
 
-        graphStats: async (_, __, { dataSources }) => {
-            const graph = dataSources.graph.exportGraph();
-            return {
-                nodeCount: graph.nodes.length,
-                edgeCount: graph.edges.length,
-                verifiedNodes: graph.nodes.filter(n => n.cid).length,
-                totalDataSize: graph.nodes.reduce((sum, n) => sum + (n.metadata?.size || 0), 0),
-                averageVerificationTime: 150 // Mock value in ms
-            };
+        graphStats: async () => {
+            try {
+                const metrics = graph.getGraphMetrics();
+                const storageMetrics = await storage.getStorageMetrics();
+
+                logger.info('Graph statistics retrieved', { 
+                    totalNodes: metrics.totalNodes,
+                    verifiedNodes: metrics.verifiedNodes 
+                });
+
+                return {
+                    nodeCount: metrics.totalNodes,
+                    edgeCount: metrics.totalEdges,
+                    verifiedNodes: metrics.verifiedNodes,
+                    totalDataSize: metrics.totalStorage,
+                    averageVerificationTime: storageMetrics.averageVerificationTime || 0
+                };
+            } catch (error) {
+                logger.error('Error retrieving graph stats', { error: error.message });
+                throw new Error(`Failed to retrieve graph statistics: ${error.message}`);
+            }
         },
 
-        verificationStats: async (_, { timeRange }, { dataSources }) => {
-            // Mock verification statistics
-            return {
-                totalVerifications: 1250,
-                successfulVerifications: 1200,
-                failedVerifications: 50,
-                averageTime: 145.5,
-                timeRange: timeRange
-            };
+        verificationStats: async (_, { timeRange }) => {
+            try {
+                const storageMetrics = await storage.getStorageMetrics();
+
+                logger.info('Verification statistics retrieved', { timeRange });
+
+                return {
+                    totalVerifications: storageMetrics.totalVerifications || 0,
+                    successfulVerifications: storageMetrics.successfulVerifications || 0,
+                    failedVerifications: storageMetrics.failedVerifications || 0,
+                    averageTime: storageMetrics.averageVerificationTime || 0,
+                    timeRange: timeRange
+                };
+            } catch (error) {
+                logger.error('Error retrieving verification stats', { error: error.message });
+                throw new Error(`Failed to retrieve verification statistics: ${error.message}`);
+            }
         }
     },
 
     Mutation: {
-        createNode: async (_, { input }, { dataSources }) => {
-            const { ProvenanceNode } = require('./provchain-core');
-            const node = new ProvenanceNode(input.data, input.metadata);
-            
-            if (input.linkToFilecoin) {
-                const storageResult = await dataSources.storage.store(input.data, input.metadata);
-                await node.linkToFilecoin(storageResult.cid, storageResult.pdpProof);
+        createNode: async (_, { input }) => {
+            try {
+                const node = new ProvenanceNode(input.data, input.metadata);
+                
+                if (input.linkToFilecoin) {
+                    try {
+                        const storageResult = await storage.store(input.data);
+                        await node.linkToFilecoin(storageResult.cid, storageResult.proof);
+                        
+                        logger.info('Node created and stored', { 
+                            nodeId: node.id,
+                            cid: storageResult.cid 
+                        });
+                    } catch (storageError) {
+                        logger.warn('Node created but storage failed', { 
+                            nodeId: node.id, 
+                            error: storageError.message 
+                        });
+                    }
+                } else {
+                    logger.info('Node created without storage', { nodeId: node.id });
+                }
+                
+                graph.addNode(node);
+                
+                return {
+                    ...node.toJSON(),
+                    verified: node.getVerificationStatus().verified
+                };
+            } catch (error) {
+                logger.error('Error creating node', { error: error.message });
+                throw new Error(`Failed to create node: ${error.message}`);
             }
-            
-            dataSources.graph.addNode(node);
-            
-            return {
-                ...node.toJSON(),
-                verified: true
-            };
         },
 
-        storeData: async (_, { data, metadata }, { dataSources }) => {
-            const { ProvenanceNode } = require('./provchain-core');
-            const node = new ProvenanceNode(data, metadata);
-            
-            const storageResult = await dataSources.storage.store(data, metadata);
-            await node.linkToFilecoin(storageResult.cid, storageResult.pdpProof);
-            
-            dataSources.graph.addNode(node);
-            
-            return {
-                ...node.toJSON(),
-                verified: true
-            };
-        },
+        storeData: async (_, { data, metadata }) => {
+            try {
+                const node = new ProvenanceNode(data, metadata);
+                
+                const storageResult = await storage.store(data);
+                await node.linkToFilecoin(storageResult.cid, storageResult.proof);
+                
+                graph.addNode(node);
 
-        createEdge: async (_, { input }, { dataSources }) => {
-            const { ProvenanceEdge } = require('./provchain-core');
-            const edge = new ProvenanceEdge(
-                input.sourceId,
-                input.targetId,
-                input.relationshipType,
-                input.transformationProof
-            );
-            
-            dataSources.graph.addEdge(edge);
-            return edge.toJSON();
-        },
-
-        generatePDPProof: async (_, { nodeId }, { dataSources }) => {
-            const node = dataSources.graph.getNode(nodeId);
-            if (!node || !node.cid) {
-                throw new Error('Node not found or not linked to Filecoin');
+                logger.info('Data stored and node created', { 
+                    nodeId: node.id,
+                    cid: storageResult.cid 
+                });
+                
+                return {
+                    ...node.toJSON(),
+                    verified: true
+                };
+            } catch (error) {
+                logger.error('Error storing data', { error: error.message });
+                throw new Error(`Failed to store data: ${error.message}`);
             }
-            
-            const pdpProof = await dataSources.storage.generatePDPProof(node.data, node.cid);
-            await node.linkToFilecoin(node.cid, pdpProof);
-            
-            return pdpProof;
         },
 
-        refreshVerification: async (_, { nodeId }, { dataSources }) => {
-            const node = dataSources.graph.getNode(nodeId);
-            if (!node || !node.cid) {
-                throw new Error('Node not found or not linked to Filecoin');
+        createEdge: async (_, { input }) => {
+            try {
+                const edge = new ProvenanceEdge(
+                    input.sourceId,
+                    input.targetId,
+                    input.relationshipType,
+                    input.transformationProof
+                );
+                
+                graph.addEdge(edge);
+
+                logger.info('Edge created', { 
+                    edgeId: edge.id,
+                    relationship: input.relationshipType 
+                });
+                
+                return edge.toJSON();
+            } catch (error) {
+                logger.error('Error creating edge', { error: error.message });
+                throw new Error(`Failed to create edge: ${error.message}`);
             }
-            
-            return await dataSources.storage.verifyIntegrity(node.cid);
+        },
+
+        generatePDPProof: async (_, { nodeId }) => {
+            try {
+                const node = graph.getNode(nodeId);
+                if (!node || !node.cid) {
+                    throw new Error('Node not found or not linked to Filecoin');
+                }
+                
+                // Regenerate storage proof
+                const storageResult = await storage.store(node.data);
+                await node.linkToFilecoin(node.cid, storageResult.proof);
+
+                logger.info('PDP proof generated', { nodeId, cid: node.cid });
+                
+                return node.storageProof;
+            } catch (error) {
+                logger.error('Error generating PDP proof', { nodeId, error: error.message });
+                throw new Error(`Failed to generate PDP proof: ${error.message}`);
+            }
+        },
+
+        refreshVerification: async (_, { nodeId }) => {
+            try {
+                const node = graph.getNode(nodeId);
+                if (!node || !node.cid) {
+                    throw new Error('Node not found or not linked to Filecoin');
+                }
+                
+                await node.verify(storage);
+
+                logger.info('Verification refreshed', { nodeId, cid: node.cid });
+                
+                return {
+                    valid: true,
+                    cid: node.cid,
+                    verifiedAt: new Date().toISOString(),
+                    source: 'refresh_operation',
+                    error: null
+                };
+            } catch (error) {
+                logger.error('Error refreshing verification', { nodeId, error: error.message });
+                return {
+                    valid: false,
+                    cid: node?.cid,
+                    verifiedAt: new Date().toISOString(),
+                    source: 'refresh_operation',
+                    error: error.message
+                };
+            }
         }
     }
 };
